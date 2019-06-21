@@ -34,9 +34,9 @@ for line in datfile:
     if line.startswith("#")==False:
         current_entry=line.split(";")[2]
         if i==0:
-            unit=current_entry[-4:]
+            unit=current_entry[-5:]
             print(unit)
-        current_pos=float(current_entry[:-4])
+        current_pos=float(current_entry[:-5])
         positions[i]=current_pos
         i+=1
 useframes[i:]=np.zeros_like(useframes[i:]).astype(np.bool)
@@ -66,6 +66,10 @@ energy=target_list[target]
 
 flip_bool=flip_dict[scanmotor]
 
+if scanmotor.startswith("Yaw"):
+    orientation="h"
+else:
+    orientation="v"
 
 maskpath="/data"
 maskfile=h5.File(mask,"r")
@@ -90,20 +94,20 @@ for i in range(0,N_points):
                 roi=(db_coord[0]-int(roi_size/2),db_coord[0]+int(roi_size/2),db_coord[1]-int(roi_size/2),db_coord[1]+int(roi_size/2))
                 print("Startframe is {0}. Creating full data array.".format(i))
                 if orientation=="h":
-                    data_full=np.zeros((N_points,example_data.shape[0]))
+                    data_full=np.zeros((N_points,example_data.shape[1]))
                 else:
-                    data_full = np.zeros((N_points, example_data.shape[1]))
+                    data_full = np.zeros((N_points, example_data.shape[0]))
         else:
             file_now = "/{0}_".format(scan_name) + "{:05.0f}_Lambda.nxs".format(i)
             f_now=h5.File(ldir+"/"+file_now,"r")
             if orientation=="h":
-                data_now=np.muliply(f_now["/entry/instrument/detector/data"][0,:,:],mask)
+                data_now=np.multiply(f_now["/entry/instrument/detector/data"][0,:,:],mask)
                 line_now=np.sum(data_now[roi[0]:roi[1],:],axis=0)
-                line_now[(db_coord[1]-int(dbeam_cut_range/2)):(db_coord[1]+int(dbeam_cut_range/2))]=np.zeros_like(data_now[(db_coord[1]-int(dbeam_cut_range/2)):(db_coord[1]+int(dbeam_cut_range/2))])
+                line_now[(db_coord[1]-int(dbeam_cut_range/2)):(db_coord[1]+int(dbeam_cut_range/2))]=np.zeros_like(line_now[(db_coord[1]-int(dbeam_cut_range/2)):(db_coord[1]+int(dbeam_cut_range/2))])
             else:
                 data_now = np.muliply(f_now["/entry/instrument/detector/data"][0, :, :], mask)
                 line_now = np.sum(line_now[:, roi[2]:roi[3]],axis=1)
-                line_now[(db_coord[0] - int(dbeam_cut_range / 2)):(db_coord[0] + int(dbeam_cut_range / 2))] = np.zeros_like(data_now[(db_coord[0] - int(dbeam_cut_range / 2)):(db_coord[0] + int(dbeam_cut_range / 2))])
+                line_now[(db_coord[0] - int(dbeam_cut_range / 2)):(db_coord[0] + int(dbeam_cut_range / 2))] = np.zeros_like(line_now[(db_coord[0] - int(dbeam_cut_range / 2)):(db_coord[0] + int(dbeam_cut_range / 2))])
             data_full[i,:]=line_now
     except (KeyError,OSError):
         if i==startframe:
@@ -118,7 +122,7 @@ if orientation=="h":
     thetafac=360*55*10**-6/(detector_dist*2*np.pi)
     thetamax=thetafac*(db_coord[1])
     thetamin=thetafac*(db_coord[1]-data_full.shape[1])
-    thetaarr=np.linspace(thetamax,thetamin,)
+    thetaarr=np.linspace(thetamax,thetamin,data_full.shape[1])
 
 if orientation=="v":
     thetafac=360*55*10**-6/(detector_dist*2*np.pi)
