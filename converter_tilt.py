@@ -8,7 +8,7 @@ import h5py as h5
 ##################################################
 #Parameters
 dbeam_cut_range=20
-roi_size=10
+roi_size=30
 year="2019"
 ##################################################
 
@@ -41,7 +41,7 @@ for line in datfile:
         i+=1
 useframes[i:]=np.zeros_like(useframes[i:]).astype(np.bool)
 
-target=input("What target was used? (Mo,Cu,Rh)")
+target=str(input("What target was used? (Mo,Cu,Rh)"))
 targets=["Mo","Cu","Rh"]
 if target not in targets:
     print("Error! Invalid target selected! Has to be Mo, Cu or Rh.")
@@ -53,7 +53,7 @@ detector_dist=float(input("What was the detector distance (meters)?"))
 target_list={
     "Mo": 17.48,
     "Cu": 8,
-    "Ru": 20.2,
+    "Rh": 20.2,
 }
 
 flip_dict={
@@ -116,7 +116,7 @@ for i in range(0,N_points):
         useframes[i]=False
 
 
-
+print(db_coord)
 
 if orientation=="h":
     thetafac=360*55*10**-6/(detector_dist*2*np.pi)
