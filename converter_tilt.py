@@ -7,9 +7,9 @@ import os
 import h5py as h5
 ##################################################
 #Parameters
-dbeam_cut_range=20
+dbeam_cut_range=0
 roi_size=30
-year="2019"
+year="2020"
 ##################################################
 
 logdir = "/gpfs/cfel/cxi/labs/MLL-Sigray/scan-logs/"
@@ -23,6 +23,7 @@ ldir=scanssdir+"{0}/".format(scan_name)
 
 datfile=open("{0}{1}.log".format(logdir,scan_name))
 i=0
+scanmotor=None
 
 for line in datfile:
     if line.startswith("# Points count"):
@@ -57,25 +58,34 @@ target_list={
 }
 
 flip_dict={
-    "Yaw-LENSE-UP\n":False,
+    "Yaw-LENSE-UP\n":False, #True new
     "Pitch-LENSE-UP\n":False,
     "Yaw-LENSE-DOWN\n":True, #tested
     "Pitch-LENSE-DOWN\n":True, #tested
 }
 energy=target_list[target]
-
-flip_bool=flip_dict[scanmotor]
+try:
+    flip_bool=flip_dict[scanmotor]
+except (KeyError):
+    flip_bool=False
 
 if scanmotor.startswith("Yaw"):
     orientation="h"
-else:
+elif scanmotor.startswith("Pitch"):
     orientation="v"
+else:
+    orientation=str(input("Orientation? (h/v)"))
 
 maskpath="/data"
 maskfile=h5.File(mask,"r")
 mask=maskfile[maskpath][()].astype(np.int)
 
-
+db_coord=input("At which pixel along the {0} axis is the direct beam?".format(str(orientation)))
+try:
+    db_coord=(int(db_coord),int(db_coord))
+except ValueError:
+    print("No integer number!")
+    db_coord=None
 startframe=0
 for i in range(0,N_points):
     try:
@@ -89,7 +99,8 @@ for i in range(0,N_points):
                 print("First frame was only zeros")
                 useframes[i]=False
             else:
-                db_coord=np.unravel_index(np.argmax(np.multiply(mask,example_data)),example_data.shape)
+                if db_coord==None:
+                    db_coord=np.unravel_index(np.argmax(np.multiply(mask,example_data)),example_data.shape)
                 print("Direct beam pixel coordinate is {0}.".format(db_coord))
                 roi=(db_coord[0]-int(roi_size/2),db_coord[0]+int(roi_size/2),db_coord[1]-int(roi_size/2),db_coord[1]+int(roi_size/2))
                 print("Startframe is {0}. Creating full data array.".format(i))
@@ -105,8 +116,8 @@ for i in range(0,N_points):
                 line_now=np.sum(data_now[roi[0]:roi[1],:],axis=0)
                 line_now[(db_coord[1]-int(dbeam_cut_range/2)):(db_coord[1]+int(dbeam_cut_range/2))]=np.zeros_like(line_now[(db_coord[1]-int(dbeam_cut_range/2)):(db_coord[1]+int(dbeam_cut_range/2))])
             else:
-                data_now = np.muliply(f_now["/entry/instrument/detector/data"][0, :, :], mask)
-                line_now = np.sum(line_now[:, roi[2]:roi[3]],axis=1)
+                data_now = np.multiply(f_now["/entry/instrument/detector/data"][0, :, :], mask)
+                line_now = np.sum(data_now[:, roi[2]:roi[3]],axis=1)
                 line_now[(db_coord[0] - int(dbeam_cut_range / 2)):(db_coord[0] + int(dbeam_cut_range / 2))] = np.zeros_like(line_now[(db_coord[0] - int(dbeam_cut_range / 2)):(db_coord[0] + int(dbeam_cut_range / 2))])
             data_full[i,:]=line_now
     except (KeyError,OSError):
