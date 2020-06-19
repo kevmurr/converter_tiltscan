@@ -5,11 +5,12 @@ import numpy as np
 import sys
 import os
 import h5py as h5
+from scipy.ndimage import median_filter
 ##################################################
 #Parameters
-dbeam_cut_range=0
-roi_size=30
+roi_size=15
 year="2020"
+manual_db=None
 ##################################################
 
 logdir = "/gpfs/cfel/cxi/labs/MLL-Sigray/scan-logs/"
@@ -25,21 +26,35 @@ datfile=open("{0}{1}.log".format(logdir,scan_name))
 i=0
 scanmotor=None
 
-for line in datfile:
-    if line.startswith("# Points count"):
-        N_points=int(line.split(":")[1])
-        positions = np.zeros((N_points)).astype("float")
-        useframes = np.ones((N_points)).astype(np.bool)
-    if line.startswith("# Device:") and line.endswith("Scanner")==False and line.endswith("Lambda\n")==False:
-        scanmotor=str(line.split(":")[1][1:])
-    if line.startswith("#")==False:
-        current_entry=line.split(";")[2]
-        if i==0:
-            unit=current_entry[-5:]
-            print(unit)
-        current_pos=float(current_entry[:-5])
-        positions[i]=current_pos
-        i+=1
+if int(scanno)<1004:
+    for line in datfile:
+        if line.startswith("# Points count"):
+            N_points=int(line.split(":")[1])
+            positions = np.zeros((N_points)).astype("float")
+            useframes = np.ones((N_points)).astype(np.bool)
+        if line.startswith("# Device:") and line.endswith("Scanner")==False and line.endswith("Lambda\n")==False:
+            scanmotor=str(line.split(":")[1][1:])
+        if line.startswith("#")==False:
+            current_entry=line.split(";")[2]
+            if i==0:
+                unit=current_entry[-5:]
+                print(unit)
+            current_pos=float(current_entry[:-5])
+            positions[i]=current_pos
+            i+=1
+else:
+    for line in datfile:
+        if line.startswith("# Points count"):
+            N_points=int(line.split(":")[1])
+            positions = np.zeros((N_points)).astype("float")
+            useframes = np.ones((N_points)).astype(np.bool)
+        if line.startswith("# Device:") and line.endswith("Scanner")==False and line.endswith("Lambda\n")==False:
+            scanmotor=str(line.split(":")[1][1:])
+        if line.startswith("#")==False:
+            current_entry=line.split(";")[2]
+            current_pos=float(current_entry)
+            positions[i]=current_pos
+            i+=1
 useframes[i:]=np.zeros_like(useframes[i:]).astype(np.bool)
 
 target=str(input("What target was used? (Mo,Cu,Rh)"))
@@ -80,12 +95,8 @@ maskpath="/data"
 maskfile=h5.File(mask,"r")
 mask=maskfile[maskpath][()].astype(np.int)
 
-db_coord=input("At which pixel along the {0} axis is the direct beam?".format(str(orientation)))
-try:
-    db_coord=(int(db_coord),int(db_coord))
-except ValueError:
-    print("No integer number!")
-    db_coord=None
+db_coord=manual_db
+
 startframe=0
 for i in range(0,N_points):
     try:
@@ -100,7 +111,8 @@ for i in range(0,N_points):
                 useframes[i]=False
             else:
                 if db_coord==None:
-                    db_coord=np.unravel_index(np.argmax(np.multiply(mask,example_data)),example_data.shape)
+                    filtered_data=median_filter(example_data,size=10)
+                    db_coord=np.unravel_index(np.argmax(np.multiply(mask,filtered_data)),filtered_data.shape)
                 print("Direct beam pixel coordinate is {0}.".format(db_coord))
                 roi=(db_coord[0]-int(roi_size/2),db_coord[0]+int(roi_size/2),db_coord[1]-int(roi_size/2),db_coord[1]+int(roi_size/2))
                 print("Startframe is {0}. Creating full data array.".format(i))
@@ -114,11 +126,9 @@ for i in range(0,N_points):
             if orientation=="h":
                 data_now=np.multiply(f_now["/entry/instrument/detector/data"][0,:,:],mask)
                 line_now=np.sum(data_now[roi[0]:roi[1],:],axis=0)
-                line_now[(db_coord[1]-int(dbeam_cut_range/2)):(db_coord[1]+int(dbeam_cut_range/2))]=np.zeros_like(line_now[(db_coord[1]-int(dbeam_cut_range/2)):(db_coord[1]+int(dbeam_cut_range/2))])
             else:
                 data_now = np.multiply(f_now["/entry/instrument/detector/data"][0, :, :], mask)
                 line_now = np.sum(data_now[:, roi[2]:roi[3]],axis=1)
-                line_now[(db_coord[0] - int(dbeam_cut_range / 2)):(db_coord[0] + int(dbeam_cut_range / 2))] = np.zeros_like(line_now[(db_coord[0] - int(dbeam_cut_range / 2)):(db_coord[0] + int(dbeam_cut_range / 2))])
             data_full[i,:]=line_now
     except (KeyError,OSError):
         if i==startframe:
